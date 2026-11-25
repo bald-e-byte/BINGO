@@ -7,55 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
-<style>
-:root{--paper:#EEF3F6;--grid:#CBD9E4;--ink:#22314A;--pencil:#8A98A8;--hint:#FFF1A6;--red:#D62839;--wob:255px 14px 225px 14px/14px 225px 14px 255px}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0}
-body{font-family:"Patrick Hand","Comic Sans MS",cursive;font-size:20px;color:var(--ink);background:var(--paper);
-background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:24px 24px;
-min-height:100dvh;padding:max(16px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom))}
-main{max-width:460px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
-h1{font-size:46px;line-height:1;margin:6px 0 0;font-weight:400}
-p{margin:0}.note{color:var(--pencil)}.err{color:var(--red)}
-.btn,input{font:inherit;font-size:22px;min-height:54px;padding:8px 16px;color:var(--ink);background:#fff;border:2.5px solid var(--ink);border-radius:var(--wob);width:100%}
-.btn{cursor:pointer;touch-action:manipulation}
-.btn:active:not(:disabled){transform:translateY(2px)}
-.btn.pri{background:var(--ink);color:var(--paper)}
-.btn.red{background:var(--red);border-color:var(--red);color:#fff;font-size:28px;min-height:64px;animation:pop .5s ease-out}
-.btn:disabled{opacity:.45}
-input{text-transform:none}input.code{text-transform:uppercase;letter-spacing:.3em;text-align:center}
-.row{display:flex;gap:10px}.row>*{flex:1}
-.g5{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
-.cell,.chip{font:inherit;color:var(--ink);background:#fff;border:2.5px solid var(--ink);border-radius:var(--wob);padding:0;touch-action:manipulation}
-.cell{aspect-ratio:1;font-size:30px;position:relative;overflow:hidden;transition:transform 0.1s;cursor:pointer}
-.chip{min-height:46px;font-size:22px;border-width:2px}
-.cell.sel{outline:3px dashed var(--red);outline-offset:2px}
-
-/* Number states */
-.cell:active{transform:scale(0.95)}
-.cell.called{background:var(--hint);border-color:var(--pencil);color:var(--pencil)}
-.cell.marked .mark-x{display:block}
-
-/* The X mark inside the cell */
-.mark-x{display:none;position:absolute;top:50%;left:50%;width:80%;height:4px;background:var(--red);transform:translate(-50%,-50%) rotate(-45deg);border-radius:4px;pointer-events:none;z-index:5}
-.mark-x::after{content:'';position:absolute;width:100%;height:100%;background:inherit;transform:rotate(90deg);border-radius:4px}
-
-/* Winning lines SVG Wrapper */
-.board-wrapper { position: relative; width: 100%; }
-.line-svg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;overflow:visible}
-.line-svg line{stroke:var(--red);stroke-width:6;stroke-linecap:round;animation:drawLine 0.4s ease-out forwards;stroke-dasharray:1000;stroke-dashoffset:1000}
-
-.letters{display:flex;gap:8px;justify-content:center}
-.letters span{width:54px;height:62px;display:grid;place-items:center;font-size:42px;background:#fff;border:2.5px solid var(--ink);border-radius:var(--wob)}
-.letters span.on{color:var(--red);border-color:var(--red);background:#FFE6E9;transform:rotate(-5deg)}
-.turn{font-size:24px;text-align:center}
-.big{font-size:64px;line-height:1.05;text-align:center}
-.code{font-size:26px}
-@keyframes pop{from{transform:scale(.85)}to{transform:scale(1)}}
-@keyframes drawLine{to{stroke-dashoffset:0}}
-@media (prefers-reduced-motion:reduce){.btn.red{animation:none}.line-svg line{animation:none;stroke-dashoffset:0}}
-:focus-visible{outline:3px solid var(--red);outline-offset:2px}
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main id="app"><p>Connecting…</p></main>
@@ -88,8 +40,8 @@ for (let r = 0; r < 5; r++) {
 }
 LINES.push([0,6,12,18,24], [4,8,12,16,20]);
 
-// Since the grid has 8px gaps, we need to draw the lines slightly offset so they go right through the middle of the cells.
-// These are calculated based on 5 columns/rows with standard spacing.
+// The grid has 5 columns. The center of each column is at 10%, 30%, 50%, 70%, 90%.
+// (This is perfectly accurate regardless of screen width because the grid columns are equal fractions).
 const LINE_COORDS = [
   // Rows
   [[0,10],[100,10]], [[0,30],[100,30]], [[0,50],[100,50]], [[0,70],[100,70]], [[0,90],[100,90]],
@@ -184,10 +136,10 @@ function play() {
   
   if (S.last) h += `<p class="note" style="text-align:center">Last called: <b>${S.last}</b> by ${S.called[S.last] === S.uid ? "you" : nameOf(S.called[S.last])}</p>`;
 
-  // Wrap the board in a relative container so the SVG stays inside it
   h += `<div class="board-wrapper">`;
   
-  h += `<svg class="line-svg" viewBox="0 0 100 100" preserveAspectRatio="none">`;
+  // The SVG no longer uses preserveAspectRatio="none" so it stays square
+  h += `<svg class="line-svg" viewBox="0 0 100 100">`;
   LINES.forEach((line, idx) => {
     if (line.every(i => S.marked[i])) {
       const [start, end] = LINE_COORDS[idx];
@@ -200,13 +152,12 @@ function play() {
   S.board.forEach((n, i) => {
     const isCalled = S.called[n];
     const isMarked = S.marked[i];
-    h += `<button class="cell ${isMarked ? "marked" : ""} ${isCalled ? "called" : ""}" 
-             data-act="mark" data-v="${i}">
-             ${n}
+    h += `<button class="cell ${isMarked ? "marked" : ""} ${isCalled ? "called" : ""}" data-act="mark" data-v="${i}">
+             <span style="position:relative; z-index:2;">${n}</span>
              <div class="mark-x"></div>
            </button>`;
   });
-  h += `</div></div>`; // Close board-wrapper and g5
+  h += `</div></div>`;
 
   if (L >= 5) h += `<button class="btn red" data-act="claim">SHOUT BINGO!</button>`;
   return h + `<p class="err">${esc(S.err)}</p>`;
