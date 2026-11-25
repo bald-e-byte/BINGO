@@ -32,24 +32,13 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const NUMS = Array.from({length:25}, (_, i) => i + 1);
 
-// the 12 winning lines
+// 12 winning lines
 const LINES = [];
 for (let r = 0; r < 5; r++) {
   LINES.push([0,1,2,3,4].map(c => r*5 + c));
   LINES.push([0,1,2,3,4].map(c => c*5 + r));
 }
 LINES.push([0,6,12,18,24], [4,8,12,16,20]);
-
-// The grid has 5 columns. The center of each column is at 10%, 30%, 50%, 70%, 90%.
-// (This is perfectly accurate regardless of screen width because the grid columns are equal fractions).
-const LINE_COORDS = [
-  // Rows
-  [[0,10],[100,10]], [[0,30],[100,30]], [[0,50],[100,50]], [[0,70],[100,70]], [[0,90],[100,90]],
-  // Cols
-  [[10,0],[10,100]], [[30,0],[30,100]], [[50,0],[50,100]], [[70,0],[70,100]], [[90,0],[90,100]],
-  // Diagonals
-  [[0,0],[100,100]], [[100,0],[0,100]]
-];
 
 const S = {uid:null, code:null, name:"", codeIn:"", err:"", host:null, players:{}, ready:{}, status:null, turn:null,
   called:{}, last:null, claim:null, boards:{}, board:Array(25).fill(0), sel:0, marked:Array(25).fill(false), starting:false, watching:false};
@@ -125,6 +114,7 @@ const lineCount = () => LINES.filter(l => l.every(i => S.marked[i])).length;
 function play() {
   const myTurn = S.turn === S.uid, L = lineCount(), o = otherUid(S.uid);
   
+  // Letters strike out based on completed lines
   let h = `<div class="letters">${[..."BINGO"].map((c, i) => `<span class="${i < L ? "on" : ""}">${c}</span>`).join("")}</div>`;
   
   if (myTurn) {
@@ -136,18 +126,7 @@ function play() {
   
   if (S.last) h += `<p class="note" style="text-align:center">Last called: <b>${S.last}</b> by ${S.called[S.last] === S.uid ? "you" : nameOf(S.called[S.last])}</p>`;
 
-  h += `<div class="board-wrapper">`;
-  
-  // The SVG no longer uses preserveAspectRatio="none" so it stays square
-  h += `<svg class="line-svg" viewBox="0 0 100 100">`;
-  LINES.forEach((line, idx) => {
-    if (line.every(i => S.marked[i])) {
-      const [start, end] = LINE_COORDS[idx];
-      h += `<line x1="${start[0]}" y1="${start[1]}" x2="${end[0]}" y2="${end[1]}" />`;
-    }
-  });
-  h += `</svg>`;
-
+  // Standard Grid
   h += `<div class="g5">`;
   S.board.forEach((n, i) => {
     const isCalled = S.called[n];
@@ -157,7 +136,7 @@ function play() {
              <div class="mark-x"></div>
            </button>`;
   });
-  h += `</div></div>`;
+  h += `</div>`;
 
   if (L >= 5) h += `<button class="btn red" data-act="claim">SHOUT BINGO!</button>`;
   return h + `<p class="err">${esc(S.err)}</p>`;
