@@ -133,7 +133,7 @@ function play() {
     const isMarked = S.marked[i];
     h += `<button class="cell ${isMarked ? "marked" : ""} ${isCalled ? "called" : ""}" data-act="mark" data-v="${i}">
              <span style="position:relative; z-index:2;">${n}</span>
-             <div class="mark-x"></div>
+             <div class="mark-slash"></div>
            </button>`;
   });
   h += `</div>`;
