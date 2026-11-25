@@ -52,7 +52,7 @@ input.code { text-transform: uppercase; letter-spacing: .3em; text-align: center
 .cell {
   aspect-ratio: 1; font-size: 30px; position: relative;
   transition: transform 0.1s; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; /* Centers the number */
+  display: flex; align-items: center; justify-content: center;
 }
 .chip { min-height: 46px; font-size: 22px; border-width: 2px; }
 .cell.sel { outline: 3px dashed var(--red); outline-offset: 2px; }
@@ -61,7 +61,7 @@ input.code { text-transform: uppercase; letter-spacing: .3em; text-align: center
 .cell:active { transform: scale(0.95); }
 .cell.called { background: var(--hint); border-color: var(--pencil); color: var(--pencil); }
 
-/* Fixed X mark inside the cell */
+/* Perfect X mark inside the cell */
 .cell.marked .mark-x { display: block; }
 .mark-x {
   display: none; position: absolute; top: 50%; left: 50%;
@@ -74,34 +74,43 @@ input.code { text-transform: uppercase; letter-spacing: .3em; text-align: center
   background: inherit; transform: rotate(90deg); border-radius: 4px;
 }
 
-/* Winning lines SVG Wrapper */
-.board-wrapper { position: relative; width: 100%; height: 100%; }
-.line-svg {
-  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-  pointer-events: none; z-index: 10; overflow: visible;
-}
-.line-svg line {
-  stroke: var(--red); stroke-width: 6; stroke-linecap: round;
-  animation: drawLine 0.4s ease-out forwards;
-  stroke-dasharray: 1000; stroke-dashoffset: 1000;
-}
-
+/* BINGO Letters */
 .letters { display: flex; gap: 8px; justify-content: center; }
 .letters span {
   width: 54px; height: 62px; display: grid; place-items: center;
   font-size: 42px; background: #fff;
   border: 2.5px solid var(--ink); border-radius: var(--wob);
+  position: relative;
+  transition: transform 0.3s;
 }
-.letters span.on { color: var(--red); border-color: var(--red); background: #FFE6E9; transform: rotate(-5deg); }
+
+/* The new striking effect */
+.letters span.on {
+  color: var(--pencil);
+  border-color: var(--pencil);
+  transform: rotate(-5deg);
+}
+
+.letters span.on::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 80%; height: 5px;
+  background: var(--red);
+  transform: translate(-50%, -50%) rotate(-45deg);
+  border-radius: 4px;
+  animation: strikeAnim 0.3s ease-out forwards;
+}
+
 .turn { font-size: 24px; text-align: center; }
 .big { font-size: 64px; line-height: 1.05; text-align: center; }
 .code { font-size: 26px; }
 
 @keyframes pop { from { transform: scale(.85); } to { transform: scale(1); } }
-@keyframes drawLine { to { stroke-dashoffset: 0; } }
+@keyframes strikeAnim { from { width: 0; } to { width: 80%; } }
 
 @media (prefers-reduced-motion: reduce) {
   .btn.red { animation: none; }
-  .line-svg line { animation: none; stroke-dashoffset: 0; }
+  .letters span.on::after { animation: none; }
 }
 :focus-visible { outline: 3px solid var(--red); outline-offset: 2px; }
