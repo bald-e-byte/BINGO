@@ -61,17 +61,13 @@ input.code { text-transform: uppercase; letter-spacing: .3em; text-align: center
 .cell:active { transform: scale(0.95); }
 .cell.called { background: var(--hint); border-color: var(--pencil); color: var(--pencil); }
 
-/* Perfect X mark inside the cell */
-.cell.marked .mark-x { display: block; }
-.mark-x {
+/* Single Slash mark inside the cell */
+.cell.marked .mark-slash { display: block; }
+.mark-slash {
   display: none; position: absolute; top: 50%; left: 50%;
-  width: 60%; height: 4px; background: var(--red);
+  width: 80%; height: 4px; background: var(--red);
   transform: translate(-50%, -50%) rotate(-45deg);
   border-radius: 4px; pointer-events: none; z-index: 5;
-}
-.mark-x::after {
-  content: ''; position: absolute; width: 100%; height: 100%;
-  background: inherit; transform: rotate(90deg); border-radius: 4px;
 }
 
 /* BINGO Letters */
@@ -84,7 +80,6 @@ input.code { text-transform: uppercase; letter-spacing: .3em; text-align: center
   transition: transform 0.3s;
 }
 
-/* The new striking effect */
 .letters span.on {
   color: var(--pencil);
   border-color: var(--pencil);
