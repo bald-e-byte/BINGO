@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bingo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#EEF3F6;--grid:#CBD9E4;--ink:#22314A;--pencil:#8A98A8;--mark:#8FDB8A;--hint:#FFF1A6;--red:#D62839;--wob:255px 14px 225px 14px/14px 225px 14px 255px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{font-family:"Patrick Hand","Comic Sans MS",cursive;font-size:20px;color:var(--ink);background:var(--paper);
+background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:24px 24px;
+min-height:100dvh;padding:max(16px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom))}
+main{max-width:460px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+h1{font-size:46px;line-height:1;margin:6px 0 0;font-weight:400}
+p{margin:0}.note{color:var(--pencil)}.err{color:var(--red)}
+.btn,input{font:inherit;font-size:22px;min-height:54px;padding:8px 16px;color:var(--ink);background:#fff;border:2.5px solid var(--ink);border-radius:var(--wob);width:100%}
+.btn{cursor:pointer;touch-action:manipulation}
+.btn:active:not(:disabled){transform:translateY(2px)}
+.btn.pri{background:var(--ink);color:var(--paper)}
+.btn.red{background:var(--red);border-color:var(--red);color:#fff;font-size:28px;min-height:64px;animation:pop .5s ease-out}
+.btn:disabled{opacity:.45}
+input{text-transform:none}input.code{text-transform:uppercase;letter-spacing:.3em;text-align:center}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.g5{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.cell,.chip{font:inherit;color:var(--ink);background:#fff;border:2.5px solid var(--ink);border-radius:var(--wob);padding:0;touch-action:manipulation}
+.cell{aspect-ratio:1;font-size:30px}
+.chip{min-height:46px;font-size:22px;border-width:2px}
+.cell.sel{outline:3px dashed var(--red);outline-offset:2px}
+.cell.hint{background:var(--hint)}
+.cell.mk{background:var(--mark);transform:rotate(-2deg)}
+.chip:disabled{opacity:.5}
+.chip.done:disabled{opacity:1;color:var(--pencil);border-color:var(--pencil);text-decoration:line-through;text-decoration-color:var(--red);text-decoration-thickness:3px}
+.letters{display:flex;gap:8px;justify-content:center}
+.letters span{width:54px;height:62px;display:grid;place-items:center;font-size:42px;background:#fff;border:2.5px solid var(--ink);border-radius:var(--wob)}
+.letters span.on{color:var(--red);border-color:var(--red);background:#FFE6E9;transform:rotate(-5deg)}
+.turn{font-size:24px;text-align:center}
+.big{font-size:64px;line-height:1.05;text-align:center}
+.code{font-size:26px}
+@keyframes pop{from{transform:scale(.85)}to{transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){.btn.red{animation:none}}
+:focus-visible{outline:3px solid var(--red);outline-offset:2px}
+</style>
+</head>
+<body>
+<main id="app"><p>Connecting…</p></main>
+
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,signInAnonymously} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getDatabase,ref,onValue,onChildAdded,set,update,get} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+// 1) PASTE YOUR FIREBASE CONFIG HERE (Project settings > Your apps > Web app)
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+  projectId: "YOUR_PROJECT",
+  appId: "YOUR_APP_ID"
+};
+
+const app = initializeApp(firebaseConfig), db = getDatabase(app), auth = getAuth(app);
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const NUMS = Array.from({length:25}, (_, i) => i + 1);
+
+// the 12 winning lines (5 rows, 5 columns, 2 diagonals)
+const LINES = [];
+for (let r = 0; r < 5; r++) {
+  LINES.push([0,1,2,3,4].map(c => r*5 + c));
+  LINES.push([0,1,2,3,4].map(c => c*5 + r));
+}
+LINES.push([0,6,12,18,24], [4,8,12,16,20]);
+
+const S = {uid:null, code:null, name:"", codeIn:"", err:"", host:null, players:{}, ready:{}, status:null, turn:null,
+  called:{}, last:null, claim:null, boards:{}, board:Array(25).fill(0), sel:0, marked:Array(25).fill(false), starting:false, watching:false};
+
+const valid = b => Array.isArray(b) && b.length === 25 && new Set(b).size === 25 && b.every(n => Number.isInteger(n) && n >= 1 && n <= 25);
+const nameOf = u => S.players[u] ? esc(S.players[u]) : "Opponent";
+const otherUid = u => Object.keys(S.players).find(x => x !== u);
+const fail = e => { S.err = e.message || String(e); render(); };
+
+// ---------- screens ----------
+function home() {
+  return `<h1>Bingo</h1>
+  <p class="note">Two players. Build your own board. First to 5 lines wins.</p>
+  <input id="name" placeholder="Your name" maxlength="16" value="${esc(S.name)}" autocomplete="off">
+  <button class="btn pri" data-act="create">Create a room</button>
+  <p class="note" style="text-align:center">or join a friend</p>
+  <div class="row"><input id="codeIn" class="code" placeholder="CODE" maxlength="4" value="${esc(S.codeIn)}" autocomplete="off"><button class="btn" data-act="join">Join room</button></div>
+  <p class="err">${esc(S.err)}</p>`;
+}
+
+function boardHTML(act, cls) {
+  return `<div class="g5">${S.board.map((n, i) => cls(n, i)).join("")}</div>`;
+}
+
+function lobby() {
+  const o = Object.entries(S.players).find(([u]) => u !== S.uid);
+  const locked = S.ready[S.uid];
+  let h = `<h1>Room <span class="code">${S.code}</span></h1>
+  <p class="note">${o ? esc(o[1]) + " is here." : "Share this code with your friend."}</p>`;
+  if (locked) {
+    h += `<p>Board locked. ${Object.keys(S.ready).length === 2 ? "Starting…" : "Waiting for the other player to lock theirs."}</p>`;
+    h += boardHTML("", (n) => `<div class="cell" style="display:grid;place-items:center">${n}</div>`);
+  } else {
+    const used = new Set(S.board);
+    h += `<p>Tap a square, then tap a number. Use each number 1–25 once.</p>`;
+    h += boardHTML("cell", (n, i) => `<button class="cell ${S.sel === i ? "sel" : ""}" data-act="cell" data-v="${i}">${n || ""}</button>`);
+    h += `<div class="g5">${NUMS.map(n => `<button class="chip" data-act="pick" data-v="${n}" ${used.has(n) ? "disabled" : ""}>${n}</button>`).join("")}</div>`;
+    h += `<div class="row"><button class="btn" data-act="shuffle">Randomize</button><button class="btn pri" data-act="lock" ${valid(S.board) ? "" : "disabled"}>Lock board</button></div>`;
+  }
+  return h + `<p class="err">${esc(S.err)}</p>`;
+}
+
+const lineCount = () => LINES.filter(l => l.every(i => S.marked[i])).length;
+
+function play() {
+  const myTurn = S.turn === S.uid, L = lineCount(), o = otherUid(S.uid);
+  let h = `<div class="letters">${[..."BINGO"].map((c, i) => `<span class="${i < L ? "on" : ""}">${c}</span>`).join("")}</div>`;
+  h += `<p class="turn">${myTurn ? "Your turn. Call a number." : "Waiting for " + nameOf(o) + "…"}</p>`;
+  if (S.last) h += `<p class="note" style="text-align:center">Last called: ${S.last} by ${S.called[S.last] === S.uid ? "you" : nameOf(S.called[S.last])}</p>`;
+  h += boardHTML("", (n, i) => `<button class="cell ${S.marked[i] ? "mk" : S.called[n] ? "hint" : ""}" data-act="mark" data-v="${i}">${n}</button>`);
+  if (L >= 5) h += `<button class="btn red" data-act="claim">SHOUT BINGO!</button>`;
+  h += `<p class="note">Caller</p><div class="g5">${NUMS.map(n =>
+    `<button class="chip ${S.called[n] ? "done" : ""}" data-act="call" data-v="${n}" ${(!myTurn || S.called[n]) ? "disabled" : ""}>${n}</button>`).join("")}</div>`;
+  return h + `<p class="err">${esc(S.err)}</p>`;
+}
+
+function over() {
+  const ids = Object.keys(S.players);
+  if (!ids.every(u => S.boards[u])) return `<p>Checking the boards…</p>`;
+  const c = S.claim, b = Array.from(S.boards[c]);
+  const ok = valid(b) && LINES.filter(l => l.every(i => S.called[b[i]])).length >= 5;
+  const winner = ok ? c : otherUid(c);
+  return `<h1 class="big">${winner === S.uid ? "You win!" : nameOf(winner) + " wins"}</h1>
+  <p class="turn">${ok ? nameOf(c) + " completed 5 lines." : nameOf(c) + " shouted BINGO without 5 lines."}</p>
+  <button class="btn pri" data-act="again">Play again</button>`;
+}
+
+function render() {
+  maybeStart();
+  const el = $("#app");
+  if (!S.uid) return;
+  el.innerHTML = !S.code ? home() : S.claim ? over() : S.status === "playing" ? play() : lobby();
+}
+
+// ---------- firebase ----------
+const R = p => ref(db, `rooms/${S.code}/${p}`);
+let unsubs = [];
+
+function enter(code) {
+  S.code = code; S.err = ""; S.sel = 0;
+  const on = (p, fn) => unsubs.push(onValue(R(p), s => { fn(s.val()); render(); }, fail));
+  on("host", v => S.host = v);
+  on("players", v => S.players = v || {});
+  on("ready", v => S.ready = v || {});
+  on("status", v => S.status = v);
+  on("turn", v => S.turn = v);
+  on("claim", v => { S.claim = v; if (v && !S.watching) watchBoards(); });
+  unsubs.push(onChildAdded(R("called"), s => { S.called[s.key] = s.val(); S.last = +s.key; render(); }, fail));
+}
+
+function watchBoards() {
+  S.watching = true;
+  Object.keys(S.players).forEach(u =>
+    unsubs.push(onValue(R(`boards/${u}`), s => { if (s.val()) { S.boards[u] = s.val(); render(); } }, fail)));
+}
+
+// the host starts the game once both boards are locked
+function maybeStart() {
+  if (S.host && S.host === S.uid && !S.status && !S.starting && Object.keys(S.ready).length === 2) {
+    S.starting = true;
+    update(ref(db, `rooms/${S.code}`), {status: "playing", turn: S.uid}).catch(e => { S.starting = false; fail(e); });
+  }
+}
+
+const genCode = () => Array.from({length:4}, () => "ABCDEFGHJKLMNPQRSTUVWXYZ"[Math.random()*24|0]).join("");
+const readName = () => { S.name = ($("#name")?.value || "").trim(); S.codeIn = ($("#codeIn")?.value || "").trim().toUpperCase(); return S.name; };
+
+const ACT = {
+  async create() {
+    if (!readName()) { S.err = "Enter your name first."; return render(); }
+    let last;
+    for (let i = 0; i < 5; i++) {
+      const code = genCode();
+      try {
+        await set(ref(db, `rooms/${code}/host`), S.uid);
+        await set(ref(db, `rooms/${code}/players/${S.uid}`), S.name);
+        return enter(code);
+      } catch (e) { last = e; }
+    }
+    fail(last);
+  },
+  async join() {
+    if (!readName()) { S.err = "Enter your name first."; return render(); }
+    if (S.codeIn.length !== 4) { S.err = "Room codes have 4 letters."; return render(); }
+    try {
+      const h = await get(ref(db, `rooms/${S.codeIn}/host`));
+      if (!h.exists()) { S.err = "No room with that code."; return render(); }
+      const g = await get(ref(db, `rooms/${S.codeIn}/guest`));
+      if (g.exists() && g.val() !== S.uid) { S.err = "That room is full."; return render(); }
+      if (!g.exists()) await set(ref(db, `rooms/${S.codeIn}/guest`), S.uid);
+      await set(ref(db, `rooms/${S.codeIn}/players/${S.uid}`), S.name);
+      enter(S.codeIn);
+    } catch (e) { S.err = "Couldn't join. The room may be full."; render(); }
+  },
+  cell(v) {
+    const i = +v;
+    if (S.sel === i && S.board[i]) S.board[i] = 0; else S.sel = i;
+    render();
+  },
+  pick(v) {
+    S.board[S.sel] = +v;
+    const next = S.board.findIndex((n, i) => i > S.sel && !n);
+    S.sel = next >= 0 ? next : Math.max(S.board.indexOf(0), 0);
+    render();
+  },
+  shuffle() {
+    const a = [...NUMS];
+    for (let i = 24; i > 0; i--) { const j = Math.random()*(i+1)|0; [a[i], a[j]] = [a[j], a[i]]; }
+    S.board = a; render();
+  },
+  async lock() {
+    if (!valid(S.board)) return;
+    try {
+      await set(R(`boards/${S.uid}`), S.board);
+      await set(R(`ready/${S.uid}`), true);
+    } catch (e) { fail(e); }
+  },
+  call(v) {
+    const n = +v;
+    if (S.turn !== S.uid || S.called[n]) return;
+    update(ref(db, `rooms/${S.code}`), {[`called/${n}`]: S.uid, turn: otherUid(S.uid)}).catch(fail);
+  },
+  mark(v) {
+    const i = +v;
+    if (S.called[S.board[i]]) { S.marked[i] = !S.marked[i]; render(); }
+  },
+  claim() { set(R("claim"), S.uid).catch(fail); },
+  again() { unsubs.forEach(u => u()); location.reload(); }
+};
+
+document.addEventListener("click", e => {
+  const t = e.target.closest("[data-act]");
+  if (t && ACT[t.dataset.act]) ACT[t.dataset.act](t.dataset.v);
+});
+
+signInAnonymously(auth).then(c => { S.uid = c.user.uid; render(); })
+  .catch(e => { $("#app").innerHTML = `<h1>Bingo</h1><p class="err">Couldn't sign in: ${esc(e.message)}</p><p class="note">Check your Firebase config and that Anonymous sign-in is enabled.</p>`; });
+</script>
+</body>
+</html>
