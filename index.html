@@ -31,15 +31,18 @@ input{text-transform:none}input.code{text-transform:uppercase;letter-spacing:.3e
 .chip{min-height:46px;font-size:22px;border-width:2px}
 .cell.sel{outline:3px dashed var(--red);outline-offset:2px}
 
-/* NEW: Number states */
+/* Number states */
 .cell:active{transform:scale(0.95)}
 .cell.called{background:var(--hint);border-color:var(--pencil);color:var(--pencil)}
 .cell.marked .mark-x{display:block}
-.mark-x{display:none;position:absolute;top:50%;left:50%;width:80%;height:4px;background:var(--red);transform:translate(-50%,-50%) rotate(-45deg);border-radius:4px;pointer-events:none}
+
+/* The X mark inside the cell */
+.mark-x{display:none;position:absolute;top:50%;left:50%;width:80%;height:4px;background:var(--red);transform:translate(-50%,-50%) rotate(-45deg);border-radius:4px;pointer-events:none;z-index:5}
 .mark-x::after{content:'';position:absolute;width:100%;height:100%;background:inherit;transform:rotate(90deg);border-radius:4px}
 
-/* NEW: Winning lines SVG */
-.line-svg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10}
+/* Winning lines SVG Wrapper */
+.board-wrapper { position: relative; width: 100%; }
+.line-svg{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;overflow:visible}
 .line-svg line{stroke:var(--red);stroke-width:6;stroke-linecap:round;animation:drawLine 0.4s ease-out forwards;stroke-dasharray:1000;stroke-dashoffset:1000}
 
 .letters{display:flex;gap:8px;justify-content:center}
@@ -77,7 +80,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const NUMS = Array.from({length:25}, (_, i) => i + 1);
 
-// the 12 winning lines (5 rows, 5 columns, 2 diagonals)
+// the 12 winning lines
 const LINES = [];
 for (let r = 0; r < 5; r++) {
   LINES.push([0,1,2,3,4].map(c => r*5 + c));
@@ -85,10 +88,14 @@ for (let r = 0; r < 5; r++) {
 }
 LINES.push([0,6,12,18,24], [4,8,12,16,20]);
 
-// Coordinates for drawing lines on a 5x5 grid (percentage based)
+// Since the grid has 8px gaps, we need to draw the lines slightly offset so they go right through the middle of the cells.
+// These are calculated based on 5 columns/rows with standard spacing.
 const LINE_COORDS = [
+  // Rows
   [[0,10],[100,10]], [[0,30],[100,30]], [[0,50],[100,50]], [[0,70],[100,70]], [[0,90],[100,90]],
+  // Cols
   [[10,0],[10,100]], [[30,0],[30,100]], [[50,0],[50,100]], [[70,0],[70,100]], [[90,0],[90,100]],
+  // Diagonals
   [[0,0],[100,100]], [[100,0],[0,100]]
 ];
 
@@ -100,14 +107,13 @@ const nameOf = u => S.players[u] ? esc(S.players[u]) : "Opponent";
 const otherUid = u => Object.keys(S.players).find(x => x !== u);
 const fail = e => { S.err = e.message || String(e); render(); };
 
-// ---------- Sounds (Web Audio API) ----------
+// Sounds
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function playSound(type) {
   if (audioCtx.state === 'suspended') audioCtx.resume();
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.connect(gain); gain.connect(audioCtx.destination);
-  
   const now = audioCtx.currentTime;
   if (type === 'mark') {
     osc.type = 'sine'; osc.frequency.setValueAtTime(600, now);
@@ -129,7 +135,7 @@ function playSound(type) {
   }
 }
 
-// ---------- screens ----------
+// screens
 function home() {
   return `<h1>Bingo</h1>
   <p class="note">Two players. Build your own board. First to 5 lines wins.</p>
@@ -178,10 +184,9 @@ function play() {
   
   if (S.last) h += `<p class="note" style="text-align:center">Last called: <b>${S.last}</b> by ${S.called[S.last] === S.uid ? "you" : nameOf(S.called[S.last])}</p>`;
 
-  // Render board with SVG overlay for completed lines
-  h += `<div class="g5" style="position:relative;">`;
+  // Wrap the board in a relative container so the SVG stays inside it
+  h += `<div class="board-wrapper">`;
   
-  // SVG Overlay for lines
   h += `<svg class="line-svg" viewBox="0 0 100 100" preserveAspectRatio="none">`;
   LINES.forEach((line, idx) => {
     if (line.every(i => S.marked[i])) {
@@ -191,7 +196,7 @@ function play() {
   });
   h += `</svg>`;
 
-  // Cells - REMOVED the disabled attribute so they are always clickable!
+  h += `<div class="g5">`;
   S.board.forEach((n, i) => {
     const isCalled = S.called[n];
     const isMarked = S.marked[i];
@@ -201,8 +206,7 @@ function play() {
              <div class="mark-x"></div>
            </button>`;
   });
-  
-  h += `</div>`;
+  h += `</div></div>`; // Close board-wrapper and g5
 
   if (L >= 5) h += `<button class="btn red" data-act="claim">SHOUT BINGO!</button>`;
   return h + `<p class="err">${esc(S.err)}</p>`;
@@ -229,7 +233,7 @@ function render() {
   el.innerHTML = !S.code ? home() : S.claim ? over() : S.status === "playing" ? play() : lobby();
 }
 
-// ---------- firebase ----------
+// firebase
 const R = p => ref(db, `rooms/${S.code}/${p}`);
 let unsubs = [];
 
@@ -251,7 +255,6 @@ function watchBoards() {
     unsubs.push(onValue(R(`boards/${u}`), s => { if (s.val()) { S.boards[u] = s.val(); render(); } }, fail)));
 }
 
-// the host starts the game once both boards are locked
 function maybeStart() {
   if (S.host && S.host === S.uid && !S.status && !S.starting && Object.keys(S.ready).length === 2) {
     S.starting = true;
@@ -317,13 +320,11 @@ const ACT = {
     const num = S.board[i];
     const myTurn = S.turn === S.uid;
 
-    // 1. If it's my turn, and I click an uncalled number, I call it!
     if (myTurn && !S.called[num]) {
       update(ref(db, `rooms/${S.code}`), {[`called/${num}`]: S.uid, turn: otherUid(S.uid)}).catch(fail);
       return;
     }
 
-    // 2. Otherwise, if the number has been called, I mark it.
     if (S.called[num]) {
       S.marked[i] = !S.marked[i]; 
       if (S.marked[i]) playSound('mark');
