@@ -23,8 +23,8 @@
 html,body{margin:0}
 body{font-family:"Patrick Hand","Comic Sans MS",cursive;font-size:20px;color:var(--ink);background:var(--paper);
 background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:24px 24px;
-min-height:100dvh;padding:max(12px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom))}
-main{max-width:460px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+min-height:100dvh;display:flex;flex-direction:column;padding:max(12px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom))}
+main{width:100%;flex:1;max-width:460px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
 #app{display:flex;flex-direction:column;gap:14px}
 .bar{display:flex;gap:10px}#mute{margin-left:auto}[hidden]{display:none!important}
 h1{font-size:46px;line-height:1;margin:6px 0 0;font-weight:400}
@@ -67,6 +67,8 @@ input{text-transform:none}input.code{text-transform:uppercase;letter-spacing:.3e
 @keyframes swipe{from{transform:scaleX(0) rotate(-14deg)}to{transform:scaleX(1) rotate(-14deg)}}
 @media (prefers-reduced-motion:reduce){.btn.red,.strikes path.fresh,.letters span.fresh::after{animation:none}}
 :focus-visible{outline:3px solid var(--red);outline-offset:2px}
+footer{text-align:center;margin-top:18px}
+footer a{display:inline-block;padding:12px 10px;color:var(--pencil);text-decoration:none}
 </style>
 </head>
 <body>
@@ -74,6 +76,7 @@ input{text-transform:none}input.code{text-transform:uppercase;letter-spacing:.3e
   <div class="bar"><button id="leave" class="btn mute" data-act="leave" hidden>Leave room</button><button id="mute" class="btn mute" data-act="mute">Sound on</button></div>
   <div id="app"><p>Connecting…</p></div>
 </main>
+<footer><a href="https://bald-e.neocities.org" target="_blank" rel="noopener">© bald-e 2026</a></footer>
 
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
